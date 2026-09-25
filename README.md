@@ -204,6 +204,15 @@ flowchart TD
 </p>
 <p align="center"><sub>Enrolled course → plan setup (live preview) → My Learning (streak, today's agenda) → overdue sessions → real reminders → works offline</sub></p>
 
+**Fixes you can see on the device:**
+
+<p align="center">
+  <img src="./screenshots/study-planner/1-courses.jpg" width="200" alt="Courses list with stable thumbnails"/>
+  <img src="./screenshots/study-planner/9-bookmarks.jpg" width="200" alt="Bookmarks tab showing the same thumbnail"/>
+  <img src="./screenshots/study-planner/8-profile-streak.jpg" width="200" alt="Profile with day streak stat"/>
+</p>
+<p align="center"><sub>The same course keeps the same image on Courses, Bookmarks and Detail (it used to change on every render, B3) · Profile shows the new 🔥 streak stat and a "Tap to change photo" hint (U3). The email is blurred for privacy.</sub></p>
+
 ### Why it's useful
 
 Online courses are known for low completion rates: learners enroll, then drift away. Enrolling in this app had no follow-through at all. The Smart Study Planner turns an enrollment into a **personal, adaptive schedule**:
