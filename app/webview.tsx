@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
-import { useAuth } from '../store/authStore';
 import { useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 
-export default function CourseWebViewScreen() {
-  const { user, token } = useAuth();
+const CONTENT_ORIGIN = 'https://rutikakhedkar.github.io';
 
+export default function CourseWebViewScreen() {
   const params = useLocalSearchParams<{
     title: string;
     instructor: string;
@@ -15,7 +14,7 @@ export default function CourseWebViewScreen() {
     description: string;
   }>();
 
-  const courseUrl = `https://rutikakhedkar.github.io/webview/?course=${encodeURIComponent(
+  const courseUrl = `${CONTENT_ORIGIN}/webview/?course=${encodeURIComponent(
     params.title || ''
   )}&instructor=${encodeURIComponent(
     params.instructor || ''
@@ -25,6 +24,7 @@ export default function CourseWebViewScreen() {
     params.description || ''
   )}`;
 
+  const webViewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -40,34 +40,44 @@ export default function CourseWebViewScreen() {
     }
   };
 
+  const retry = () => {
+    setError(false);
+    setLoading(true);
+    webViewRef.current?.reload();
+  };
+
   if (error) {
     return (
       <View className="flex-1 justify-center items-center bg-background px-6">
-        <Text className="text-error text-sm text-center">
-          Failed to load course content. Please try again.
+        <Text className="text-error text-sm text-center mb-4">
+          Failed to load course content. Check your connection and try again.
         </Text>
+        <TouchableOpacity className="bg-primary rounded-lg px-5 py-2.5" onPress={retry}>
+          <Text className="text-white font-bold text-sm">Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
     <View className="flex-1">
+      {/* The page is a third-party static site: the user's access token and
+          email are deliberately NOT sent to it (they were previously leaked
+          as request headers without being usable by the page). */}
       <WebView
-        source={{
-          uri: courseUrl,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            UserName: user?.username || '',
-            UserEmail: user?.email || '',
-            Platform: 'Expo-App',
-          },
-        }}
+        ref={webViewRef}
+        source={{ uri: courseUrl, headers: { Platform: 'Expo-App' } }}
+        originWhitelist={[CONTENT_ORIGIN]}
         onMessage={onMessage}
         javaScriptEnabled
         domStorageEnabled
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}
         onError={() => {
+          setLoading(false);
+          setError(true);
+        }}
+        onHttpError={() => {
           setLoading(false);
           setError(true);
         }}
