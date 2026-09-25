@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,34 @@ import {
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../store/authStore';
 import { useCourses } from '../../store/courseStore';
+import { useStudyPlans } from '../../store/studyPlanStore';
+import { useToday } from '../../hooks/useToday';
+import { studyStreak } from '../../utils/studyPlan';
 import { logoutUser } from '../../utils/api';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { bookmarks, enrolled } = useCourses();
-  const [avatarUrl, setAvatarUrl] = React.useState(
-     'https://picsum.photos/200/300'
-  );
+  const { plans } = useStudyPlans();
+  const today = useToday();
+  const streak = useMemo(() => studyStreak(Object.values(plans), today), [plans, today]);
+
+  // There is no upload endpoint, so a picked avatar is kept on-device per user
+  // (it used to reset on every restart). Falls back to the user's initial.
+  const avatarKey = user ? `profile_avatar:${user._id}` : null;
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAvatarUrl(null);
+    if (!avatarKey) return;
+    AsyncStorage.getItem(avatarKey)
+      .then((uri) => setAvatarUrl(uri))
+      .catch(() => {});
+  }, [avatarKey]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -37,9 +54,6 @@ export default function ProfileScreen() {
     ]);
   };
 
-  //user avatar image is page not found so added image intensionally
-
-
   const handlePickImage = async () => {
     const permission =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -54,8 +68,7 @@ export default function ProfileScreen() {
     
     const result =
       await ImagePicker.launchImageLibraryAsync({
-        mediaTypes:
-          ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -64,13 +77,15 @@ export default function ProfileScreen() {
     if (!result.canceled) {
       const imageUri = result.assets[0].uri;
       setAvatarUrl(imageUri);
-      // Upload to backend/cloudinary/S3
+      if (avatarKey) AsyncStorage.setItem(avatarKey, imageUri).catch(() => {});
+      // TODO: upload to a backend/cloud storage once one exists
     }
   };
 
   const stats = [
     { label: 'Enrolled', value: enrolled.length, icon: '🎓' },
     { label: 'Bookmarked', value: bookmarks.length, icon: '🔖' },
+    { label: 'Day streak', value: streak, icon: '🔥' },
   ];
 
   return (
@@ -78,6 +93,8 @@ export default function ProfileScreen() {
       <TouchableOpacity
         className="items-center pt-8 pb-6 bg-surface border-b border-border"
         onPress={handlePickImage}
+        accessibilityRole="button"
+        accessibilityHint="Change profile photo"
       >
         {avatarUrl ? (
           <Image
@@ -96,6 +113,7 @@ export default function ProfileScreen() {
           {user?.username ?? 'User'}
         </Text>
         <Text className="text-[13px] text-muted">{user?.email ?? ''}</Text>
+        <Text className="text-[11px] text-primary font-semibold mt-2">Tap to change photo</Text>
       </TouchableOpacity>
 
       <View className="flex-row m-4 gap-3">

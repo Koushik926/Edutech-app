@@ -28,6 +28,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="learning"
+        options={{
+          title: 'My Learning',
+          tabBarIcon: ({ focused }) => tabIcon(focused, 'school', 'school-outline'),
+        }}
+      />
+      <Tabs.Screen
         name="bookmarks"
         options={{
           title: 'Bookmarks',

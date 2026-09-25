@@ -1,64 +1,100 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useCourses } from '../../store/courseStore';
-import { generateCourseInsights } from '@/utils/ai';
+import { useStudyPlans } from '../../store/studyPlanStore';
+import { CourseInsights, generateCourseInsights } from '@/utils/ai';
+import StudyPlanCard from '../../components/study-plan/StudyPlanCard';
+
+type AiStatus = 'loading' | 'ready' | 'unavailable';
 
 export default function CourseDetailScreen() {
-  const { id, thumbnail } = useLocalSearchParams<{ id: string; thumbnail: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { courses, bookmarks, enrolled, toggleBookmark, toggleEnroll } = useCourses();
+  const { plans, deletePlan } = useStudyPlans();
 
   const course = courses.find((c) => String(c.id) === id);
-  if (!course) {
+
+  // All hooks run before any early return (Rules of Hooks): previously the
+  // "Course not found" branch returned before useState/useEffect, which
+  // crashes with "Rendered more hooks than during the previous render" as
+  // soon as the course list loads while this screen is open.
+  const [aiInsights, setAiInsights] = useState<CourseInsights | null>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus>('loading');
+  const courseRef = useRef(course);
+  courseRef.current = course;
+  const requestId = useRef(0);
+
+  const loadAIInsights = useCallback(async () => {
+    const current = courseRef.current;
+    if (!current) return;
+    const thisRequest = ++requestId.current;
+    setAiStatus('loading');
+    const result = await generateCourseInsights(current);
+    if (thisRequest !== requestId.current) return; // a newer request (or unmount) superseded this one
+    setAiInsights(result);
+    setAiStatus(result ? 'ready' : 'unavailable');
+  }, []);
+
+  const courseId = course ? String(course.id) : null;
+  useEffect(() => {
+    if (!courseId) return;
+    loadAIInsights();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [courseId, loadAIInsights]);
+
+  if (!course || !courseId) {
     return (
-      <View className="flex-1 justify-center items-center">
-        <Text className="text-muted text-base">Course not found</Text>
+      <View className="flex-1 justify-center items-center bg-background px-6">
+        <Text className="text-muted text-base text-center">Course not found</Text>
       </View>
     );
   }
 
-  const isBookmarked = bookmarks.includes(String(course.id));
-  const isEnrolled = enrolled.includes(String(course.id));
+  const isBookmarked = bookmarks.includes(courseId);
+  const isEnrolled = enrolled.includes(courseId);
 
-  const [aiInsights, setAiInsights] = useState<any>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-
-  const handleEnroll = async () => {
-    await toggleEnroll(String(course.id));
+  const handleEnroll = () => {
     if (!isEnrolled) {
-      Alert.alert('Enrolled! 🎉', `You are now enrolled in "${course.title}"`);
+      toggleEnroll(courseId);
+      Alert.alert('Enrolled! 🎉', `You are now enrolled in "${course.title}". Build a study plan to stay on track.`);
+      return;
     }
+    const hasPlan = !!plans[courseId];
+    Alert.alert(
+      'Unenroll from this course?',
+      hasPlan ? 'Your study plan, progress and reminders for this course will also be deleted.' : undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unenroll',
+          style: 'destructive',
+          onPress: () => {
+            toggleEnroll(courseId);
+            deletePlan(courseId);
+          },
+        },
+      ]
+    );
   };
-
-  const loadAIInsights = async () => {
-    setAiLoading(true);
-
-    const result = await generateCourseInsights(course);
-
-    setAiInsights(result);
-    setAiLoading(false);
-  };
-
-  useEffect(() => {
-    if (course) {
-      loadAIInsights();
-    }
-  }, [course?.id]);
 
   return (
     <ScrollView className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
       <Image
-        source={{ uri: thumbnail ?? 'https://picsum.photos/400/250' }}
+        source={{ uri: course.thumbnail }}
         className="w-full h-[220px] bg-border"
         contentFit="cover"
       />
@@ -74,7 +110,7 @@ export default function CourseDetailScreen() {
 
         <View className="flex-row items-center gap-2.5 mb-3">
           <Image
-            source={{ uri: course.instructorAvatar }}
+            source={course.instructorAvatar ? { uri: course.instructorAvatar } : undefined}
             className="w-11 h-11 rounded-full bg-border"
             contentFit="cover"
           />
@@ -108,14 +144,17 @@ export default function CourseDetailScreen() {
             <Text className="text-base font-extrabold text-primary">AI Course Insights</Text>
           </View>
 
-          {aiLoading ? (
-            <Text className="text-[13px] text-muted leading-5">Generating AI summary...</Text>
-          ) : aiInsights ? (
+          {aiStatus === 'loading' ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text className="text-[13px] text-muted leading-5">Generating AI summary...</Text>
+            </View>
+          ) : aiStatus === 'ready' && aiInsights ? (
             <>
               <Text className="text-sm font-bold text-foreground mt-2 mb-1">
                 What you will learn
               </Text>
-              {aiInsights.whatYouWillLearn?.map((item: string, index: number) => (
+              {aiInsights.whatYouWillLearn.map((item, index) => (
                 <Text key={index} className="text-[13px] text-muted leading-5">
                   • {item}
                 </Text>
@@ -130,14 +169,22 @@ export default function CourseDetailScreen() {
               <Text className="text-[13px] text-muted leading-5">{aiInsights.aiSummary}</Text>
             </>
           ) : (
-            <TouchableOpacity
-              className="bg-primary rounded-lg py-2.5 items-center"
-              onPress={loadAIInsights}
-            >
-              <Text className="text-white text-sm font-bold">Generate AI Summary</Text>
-            </TouchableOpacity>
+            <>
+              <Text className="text-[13px] text-muted leading-5 mb-2.5">
+                AI insights are unavailable right now (the AI service may be busy or you may be offline).
+              </Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-2.5 items-center"
+                onPress={loadAIInsights}
+                accessibilityRole="button"
+              >
+                <Text className="text-white text-sm font-bold">Try again</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
+
+        {isEnrolled && <StudyPlanCard courseId={courseId} />}
 
         <View className="flex-row gap-3 mb-3">
           <TouchableOpacity
@@ -145,6 +192,8 @@ export default function CourseDetailScreen() {
               isEnrolled ? 'bg-success' : 'bg-primary'
             }`}
             onPress={handleEnroll}
+            accessibilityRole="button"
+            accessibilityHint={isEnrolled ? 'Asks to confirm unenrolling' : undefined}
           >
             <Text className="text-white text-base font-bold">
               {isEnrolled ? '✓ Enrolled' : 'Enroll Now'}
@@ -153,7 +202,9 @@ export default function CourseDetailScreen() {
 
           <TouchableOpacity
             className="w-[50px] bg-primary-light rounded-[10px] justify-center items-center"
-            onPress={() => toggleBookmark(String(course.id))}
+            onPress={() => toggleBookmark(courseId)}
+            accessibilityRole="button"
+            accessibilityLabel={isBookmarked ? 'Remove bookmark' : 'Bookmark course'}
           >
             <Ionicons
               name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
