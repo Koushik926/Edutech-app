@@ -18,7 +18,7 @@ import { loginUser } from '../../utils/api';
 import { useAuth } from '../../store/authStore';
 
 const schema = z.object({
-  email: z.string().email('Invalid email'),
+  email: z.string().trim().toLowerCase().email('Invalid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -37,10 +37,9 @@ export default function LoginScreen() {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      const res = await loginUser(data) as { data: { accessToken: string; user: object, refreshToken: string } };
-      await login(res.data.accessToken, res.data.user as Parameters<typeof login>[1], res.data.refreshToken as Parameters<typeof login>[2]);
+      const res = await loginUser(data);
+      await login(res.data.accessToken, res.data.user, res.data.refreshToken);
     } catch (err: unknown) {
-      console.log(err);
       const msg = err instanceof Error ? err.message : 'Login failed';
       Alert.alert('Login Failed', msg);
     } finally {

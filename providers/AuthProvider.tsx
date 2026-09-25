@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
 } from 'react';
 
 import {
@@ -14,10 +15,7 @@ import {
   saveAuth,
 } from '../store/authStore';
 
-import {
-  refreshAccessToken,
-  verifyAccessToken,
-} from '../utils/api';
+import { revalidateSession } from '../utils/api';
 
 type Action =
   | { type: 'SET_LOADING'; payload: boolean }
@@ -62,47 +60,44 @@ export default function AuthProvider({
     isLoading: true,
   });
 
+  // Bumped on every login/logout so a slow background revalidation can't
+  // overwrite a session change the user made in the meantime.
+  const sessionVersion = useRef(0);
+
   useEffect(() => {
     const initializeAuth = async () => {
+      let stored: Awaited<ReturnType<typeof loadAuth>>;
       try {
-        const { token, refreshToken, user } = await loadAuth();
-
-        if (!token || !refreshToken || !user) {
-          await clearAuth();
-          dispatch({ type: 'LOGOUT' });
-          return;
-        }
-
-        const isAccessTokenValid = await verifyAccessToken(token);
-
-        if (isAccessTokenValid) {
-          dispatch({
-            type: 'LOGIN',
-            payload: { token, user },
-          });
-          return;
-        }
-
-        try {
-          const newAccessToken = await refreshAccessToken(refreshToken);
-
-          await saveAuth(newAccessToken, user, refreshToken);
-
-          dispatch({
-            type: 'LOGIN',
-            payload: {
-              token: newAccessToken,
-              user,
-            },
-          });
-        } catch {
-          await clearAuth();
-          dispatch({ type: 'LOGOUT' });
-        }
+        stored = await loadAuth();
       } catch {
+        await clearAuth().catch(() => {});
+        dispatch({ type: 'LOGOUT' });
+        return;
+      }
+
+      const { token, refreshToken, user } = stored;
+      if (!token || !refreshToken || !user) {
+        await clearAuth().catch(() => {});
+        dispatch({ type: 'LOGOUT' });
+        return;
+      }
+
+      // Restore the stored session immediately so the app opens instantly and
+      // works offline; the server check below runs in the background.
+      dispatch({ type: 'LOGIN', payload: { token, user } });
+      const version = sessionVersion.current;
+
+      const result = await revalidateSession(token, refreshToken);
+      if (version !== sessionVersion.current) return;
+
+      if (result.status === 'valid') {
+        await saveAuth(result.accessToken, result.user, result.refreshToken);
+        dispatch({ type: 'LOGIN', payload: { token: result.accessToken, user: result.user } });
+      } else if (result.status === 'expired') {
         await clearAuth();
         dispatch({ type: 'LOGOUT' });
       }
+      // 'unreachable': offline or server down — keep the stored session.
     };
 
     initializeAuth();
@@ -114,7 +109,8 @@ export default function AuthProvider({
       user: User,
       refreshToken: string,
     ) => {
-      await saveAuth(token,user, refreshToken);
+      sessionVersion.current += 1;
+      await saveAuth(token, user, refreshToken);
 
       dispatch({
         type: 'LOGIN',
@@ -125,6 +121,7 @@ export default function AuthProvider({
   );
 
   const logout = useCallback(async () => {
+    sessionVersion.current += 1;
     await clearAuth();
     dispatch({ type: 'LOGOUT' });
   }, []);

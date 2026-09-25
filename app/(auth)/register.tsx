@@ -18,8 +18,12 @@ import { registerUser } from '../../utils/api';
 
 const schema = z
   .object({
-    username: z.string().min(3, 'Username must be at least 3 characters'),
-    email: z.string().email('Invalid email'),
+    username: z
+      .string()
+      .trim()
+      .min(3, 'Username must be at least 3 characters')
+      .regex(/^[a-z0-9._-]+$/, 'Use lowercase letters, numbers, . _ or - only'),
+    email: z.string().trim().toLowerCase().email('Invalid email'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirm: z.string(),
   })
