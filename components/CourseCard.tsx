@@ -4,46 +4,38 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors } from '../constants/colors';
-import { Course, useCourses } from '../store/courseStore';
+import { Course } from '../store/courseStore';
 
 interface Props {
   course: Course;
+  isBookmarked: boolean;
+  onToggleBookmark: (id: string) => void;
 }
 
-const getCourseThumbnail = () => {
-  const randomId = Math.floor(Math.random() * 1000);
-  return `https://picsum.photos/seed/course-${randomId}/400/250`;
-};
-
-function CourseCard({ course }: Props) {
+// Bookmark state comes in as props (not from context) so memo() can skip
+// re-rendering every card when a single bookmark changes.
+function CourseCard({ course, isBookmarked, onToggleBookmark }: Props) {
   const router = useRouter();
-  const { bookmarks, toggleBookmark } = useCourses();
-  const isBookmarked = bookmarks.includes(String(course.id));
-  const thumbnail = getCourseThumbnail();
 
   return (
     <TouchableOpacity
       className="bg-surface rounded-xl mx-4 mb-3.5 overflow-hidden shadow-md elevation-3"
-      onPress={() =>
-        router.push({
-          pathname: `/course/${course.id}`,
-          params: {
-            thumbnail,
-          },
-        })
-      }
+      onPress={() => router.push(`/course/${course.id}`)}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${course.title}, by ${course.instructorName ?? 'Unknown'}`}
     >
       <Image
-        source={{ uri: getCourseThumbnail() }}
+        source={{ uri: course.thumbnail }}
         className="w-full h-40 bg-border"
         contentFit="cover"
         transition={200}
+        recyclingKey={String(course.id)}
       />
       <View className="p-3">
         <View className="flex-row items-center mb-1.5">
           <Image
-            source={{ uri: course.instructorAvatar }}
+            source={course.instructorAvatar ? { uri: course.instructorAvatar } : undefined}
             className="w-6 h-6 rounded-full mr-1.5 bg-border"
             contentFit="cover"
           />
@@ -61,7 +53,12 @@ function CourseCard({ course }: Props) {
           <Text className="text-[15px] font-bold text-secondary">
             ${course.price.toFixed(2)}
           </Text>
-          <Pressable onPress={() => toggleBookmark(String(course.id))} hitSlop={8}>
+          <Pressable
+            onPress={() => onToggleBookmark(String(course.id))}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={isBookmarked ? 'Remove bookmark' : 'Bookmark course'}
+          >
             <Ionicons
               name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
               size={22}

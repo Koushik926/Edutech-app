@@ -7,13 +7,12 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { useCourses } from '../../store/courseStore';
+import { Course, courseThumbnail, useCourses } from '../../store/courseStore';
 import { fetchCourses, fetchInstructors } from '../../utils/api';
 import CourseCard from '../../components/CourseCard';
 import SearchBar from '../../components/SearchBar';
 import OfflineBanner from '../../components/OfflineBanner';
 import { Colors } from '../../constants/colors';
-import { Course } from '../../store/courseStore';
 
 interface ApiProduct {
   id: number | string;
@@ -62,7 +61,7 @@ function buildCourses(products: ApiProduct[], users: ApiUser[]): Course[] {
       description: p.description,
       price: p.price,
       category: p.category,
-      thumbnail: p.thumbnail,
+      thumbnail: courseThumbnail(p.id),
       rating,
       instructorName,
       instructorAvatar,
@@ -71,7 +70,7 @@ function buildCourses(products: ApiProduct[], users: ApiUser[]): Course[] {
 }
 
 export default function CoursesScreen() {
-  const { courses, setCourses, isLoading, error } = useCourses();
+  const { courses, setCourses, bookmarks, toggleBookmark } = useCourses();
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -94,9 +93,10 @@ export default function CoursesScreen() {
     }
   }, [setCourses]);
 
+  // Always fetch once on mount; cached courses (if any) stay visible meanwhile.
   useEffect(() => {
-    if (courses.length === 0) loadData();
-  }, [courses.length, loadData]);
+    loadData();
+  }, [loadData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -105,8 +105,8 @@ export default function CoursesScreen() {
   }, [loadData]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return courses;
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
+    if (!q) return courses;
     return courses.filter(
       (c) =>
         c.title.toLowerCase().includes(q) ||
@@ -115,18 +115,38 @@ export default function CoursesScreen() {
     );
   }, [courses, search]);
 
+  const bookmarkSet = useMemo(() => new Set(bookmarks), [bookmarks]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Course }) => (
+      <CourseCard
+        course={item}
+        isBookmarked={bookmarkSet.has(String(item.id))}
+        onToggleBookmark={toggleBookmark}
+      />
+    ),
+    [bookmarkSet, toggleBookmark]
+  );
+
   return (
     <View className="flex-1 bg-background">
       <OfflineBanner />
+      {loadError && courses.length > 0 && (
+        <View className="bg-warning/15 px-4 py-2">
+          <Text className="text-foreground text-xs text-center">
+            Couldn&apos;t refresh courses — showing your last saved list.
+          </Text>
+        </View>
+      )}
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <CourseCard course={item} />}
+        renderItem={renderItem}
         ListHeaderComponent={
           <SearchBar value={search} onChangeText={setSearch} />
         }
         ListEmptyComponent={
-          loading ? (
+          loading && !refreshing ? (
             <View className="items-center p-10">
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>

@@ -6,7 +6,9 @@ export function useNetworkStatus() {
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      setIsOnline(!!state.isConnected && !!state.isInternetReachable);
+      // isInternetReachable is null while NetInfo is still probing; treat
+      // "unknown" as online so the offline banner doesn't flash on launch.
+      setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
     });
     return unsubscribe;
   }, []);

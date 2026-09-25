@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { FlatList, View, Text } from 'react-native';
-import { useCourses } from '../../store/courseStore';
+import { Course, useCourses } from '../../store/courseStore';
 import CourseCard from '../../components/CourseCard';
 import OfflineBanner from '../../components/OfflineBanner';
 
 export default function BookmarksScreen() {
-  const { courses, bookmarks } = useCourses();
-  const bookmarkedCourses = courses.filter((c) => bookmarks.includes(String(c.id)));
+  const { courses, bookmarks, toggleBookmark } = useCourses();
+  const bookmarkedCourses = useMemo(() => {
+    const ids = new Set(bookmarks);
+    return courses.filter((c) => ids.has(String(c.id)));
+  }, [courses, bookmarks]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Course }) => (
+      <CourseCard course={item} isBookmarked onToggleBookmark={toggleBookmark} />
+    ),
+    [toggleBookmark]
+  );
 
   return (
     <View className="flex-1 bg-background">
@@ -14,7 +24,7 @@ export default function BookmarksScreen() {
       <FlatList
         data={bookmarkedCourses}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <CourseCard course={item} />}
+        renderItem={renderItem}
         ListEmptyComponent={
           <View className="items-center p-12">
             <Text className="text-5xl mb-3">🔖</Text>
