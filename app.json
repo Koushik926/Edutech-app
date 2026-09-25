@@ -38,7 +38,11 @@
       "expo-font"
     ],
     "extra": {
-      "router": {}
-    }
+      "router": {},
+      "eas": {
+        "projectId": "4b7c9ba1-ae8c-4327-9b7e-1bc79b0cfa65"
+      }
+    },
+    "owner": "nitheeshreddy"
   }
 }
