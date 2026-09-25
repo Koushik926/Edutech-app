@@ -9,7 +9,8 @@ This fork contains my submission for the Ada Lovelace Technologies React Native 
 | 🛠️ Resolved limitation: **session restore never validated or refreshed tokens** | [Resolved limitation](#3-resolved-limitation-broken-session-restore) |
 | ✨ New feature: **Smart Study Planner** (plans, reminders, catch-up, streaks) | [New feature](#4-new-feature-smart-study-planner) |
 | ⚙️ Setup, testing and APK build instructions | [Setup & testing](#5-setup--testing) |
-| 📦 Android preview APK | [**Releases →**](../../releases/latest) |
+| 📦 Android preview APK (tested on a real device) | [**Releases →**](../../releases/latest) |
+| 📸 Screenshots of the new feature | [Screenshots](#screenshots-preview-apk-on-a-real-android-device) |
 
 **At a glance:** 46 findings · 32 fixed in code · 19 unit tests · `tsc` clean · `expo-doctor` 21/22 (the remaining check needs the SDK 57 upgrade, see P4)
 
@@ -46,7 +47,7 @@ flowchart LR
 **Method**
 
 1. **Read the whole codebase** (about 1.8k lines): every screen, provider, store and util.
-2. **Scenario and edge-case walkthrough on Android:** auth, catalog, bookmarks, enrollment, AI insights, WebView, notifications and offline (the full list is [below](#test-scenarios)).
+2. **Scenario and edge-case walkthrough on a physical Android phone** (the preview APK from the Release): auth, catalog, bookmarks, enrollment, AI insights, WebView, notifications and offline (the full list is [below](#test-scenarios)).
 3. **Probed the real backend with `curl`** to confirm suspected bugs instead of guessing. This is how the most serious bug (S1) was proven: the app's token-check URL returns FreeAPI's Swagger HTML page with status `200`.
 4. **Ran tooling:** `tsc --noEmit` (failed at baseline), `npx expo-doctor` (4 failed checks at baseline), and an Android bundle export.
 5. **Ranked each finding** by user impact and fixed the ones with the best impact-to-risk ratio. Every fix keeps existing behaviour and is covered by `tsc` plus unit tests where the logic is pure.
@@ -188,6 +189,20 @@ flowchart TD
 ## 4. New feature: Smart Study Planner
 
 > *Builds on:* **Enroll** (which previously did nothing but toggle a button), **AI Course Insights** and **Notifications**.
+
+### Screenshots (preview APK on a real Android device)
+
+<p align="center">
+  <img src="./screenshots/study-planner/2-course-detail-plan-card.jpg" width="200" alt="Course detail with the Build a study plan card"/>
+  <img src="./screenshots/study-planner/3-plan-setup.jpg" width="200" alt="Plan setup with live preview"/>
+  <img src="./screenshots/study-planner/4-my-learning-streak.jpg" width="200" alt="My Learning tab with streak and today's sessions"/>
+</p>
+<p align="center">
+  <img src="./screenshots/study-planner/5-overdue-catch-up.jpg" width="200" alt="Overdue sessions highlighted with tap to catch up"/>
+  <img src="./screenshots/study-planner/6-study-reminders.jpg" width="200" alt="Study reminder notifications naming the next session"/>
+  <img src="./screenshots/study-planner/7-offline.jpg" width="200" alt="Offline: still logged in, cached data and banner"/>
+</p>
+<p align="center"><sub>Enrolled course → plan setup (live preview) → My Learning (streak, today's agenda) → overdue sessions → real reminders → works offline</sub></p>
 
 ### Why it's useful
 
