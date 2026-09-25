@@ -1,4 +1,6 @@
-export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
+// Falls back to the public FreeAPI host so builds without a .env (e.g. EAS
+// cloud builds, where .env is git-ignored) don't call "undefined/api/...".
+export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL || 'https://api.freeapi.app';
 
 export const ENDPOINTS = {
   // Auth
